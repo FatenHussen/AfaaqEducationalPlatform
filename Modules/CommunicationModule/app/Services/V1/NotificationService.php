@@ -2,7 +2,7 @@
 
 namespace Modules\CommunicationModule\Services\V1;
 
-use App\Models\User;
+use Modules\UserMangementModule\Models\User;
 use Illuminate\Notifications\DatabaseNotification;
 
 class NotificationService

@@ -28,6 +28,7 @@ Route::middleware(['auth:api'])->prefix('v1')->group(function () {
     Route::post('courses/{course}/set-primary-instructor', [CourseController::class, 'setPrimaryInstructor']);
     Route::post('courses/{course}/unset-primary-instructor', [CourseController::class, 'unsetPrimaryInstructor']);
 
+    Route::get('units/course/{course}', [UnitController::class, 'byCourse']);
     Route::apiResource('units', UnitController::class);
     Route::get('courses/{course}/units', [UnitController::class, 'byCourse']);
     Route::post('courses/{course}/units/reorder', [UnitController::class, 'reorder']);
@@ -35,6 +36,7 @@ Route::middleware(['auth:api'])->prefix('v1')->group(function () {
     Route::get('units/{unit}/duration', [UnitController::class, 'getDuration']);
     Route::get('courses/{course}/units/count', [UnitController::class, 'getUnitCount']);
 
+    Route::get('lessons/unit/{unit}', [LessonController::class, 'byUnit']);
     Route::apiResource('lessons', LessonController::class);
     Route::get('units/{unit}/lessons', [LessonController::class, 'byUnit']);
     Route::get('lessons/{lesson}/duration', [LessonController::class, 'getDuration']);

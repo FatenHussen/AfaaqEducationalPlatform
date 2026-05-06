@@ -37,6 +37,7 @@ Route::group(['prefix' => 'v1'], function () {
 
     require __DIR__ . '/V1/instructor.php';
     require __DIR__ . '/V1/student.php';
+    require __DIR__ . '/V1/auditor.php';
     require __DIR__ . '/V1/superAdmin.php';
 
     // authenticated user routes

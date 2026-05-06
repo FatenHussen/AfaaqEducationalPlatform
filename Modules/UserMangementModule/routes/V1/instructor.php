@@ -231,56 +231,9 @@ Route::group(['middleware' => ['auth:api', 'role:instructor,api']], function () 
      */
     Route::put('/my-courses/{course}/units/{unit}/lessons/{lesson}/position', [LessonController::class, 'moveToPositionForCourseUnit']);
 
-    /**
-    |--------------------------------------------------------------------------
-    | Units & Lessons (flat, Learning Module)
-    |--------------------------------------------------------------------------
+    /*
+     * Flat Learning-module URLs (GET /api/v1/units/..., /api/v1/lessons/...) are registered in
+     * Modules/LearningModule/routes/api.php. Duplicating them here with role:instructor overwrote
+     * permission-only routes and broke clients using other roles (e.g. auditor).
      */
-    /**
-     * @name   Units by Course
-     * @path   GET /api/v1/units/course/{course}
-     * @desc   List units for an assigned course.
-     * @param  {course: slug}
-     * @controller UnitController@byCourse
-     */
-    Route::get('/units/course/{course}', [UnitController::class, 'byCourse']);
-
-    /**
-     * @name   View Unit
-     * @path   GET /api/v1/units/{unit}
-     * @desc   View a unit (must belong to instructor's assigned course).
-     * @controller UnitController@show
-     */
-    Route::get('/units/{unit}', [UnitController::class, 'show']);
-
-    /**
-     * @name   Unit Duration
-     * @path   GET /api/v1/units/{unit}/duration
-     * @controller UnitController@getDuration
-     */
-    Route::get('/units/{unit}/duration', [UnitController::class, 'getDuration']);
-
-    /**
-     * @name   Lessons by Unit
-     * @path   GET /api/v1/lessons/unit/{unit}
-     * @desc   List lessons in a unit (must belong to assigned course).
-     * @param  {unit: slug}
-     * @controller LessonController@byUnit
-     */
-    Route::get('/lessons/unit/{unit}', [LessonController::class, 'byUnit']);
-
-    /**
-     * @name   View Lesson
-     * @path   GET /api/v1/lessons/{lesson}
-     * @desc   View a lesson (must belong to instructor's assigned course).
-     * @controller LessonController@show
-     */
-    Route::get('/lessons/{lesson}', [LessonController::class, 'show']);
-
-    /**
-     * @name   Lesson Duration
-     * @path   GET /api/v1/lessons/{lesson}/duration
-     * @controller LessonController@getDuration
-     */
-    Route::get('/lessons/{lesson}/duration', [LessonController::class, 'getDuration']);
 });

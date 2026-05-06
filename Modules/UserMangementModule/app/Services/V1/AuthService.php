@@ -56,9 +56,13 @@ class AuthService
             ];
         }
 
+        $user = auth()->user();
+        $user->loadMissing('roles');
+
         return [
             'status' => 'success',
-            'user' => auth()->user(),
+            'user' => $user,
+            'role' => $user->getRoleNames()->first(),
             'token' => $token,
         ];
     }

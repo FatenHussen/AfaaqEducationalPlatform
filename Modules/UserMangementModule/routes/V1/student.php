@@ -176,60 +176,9 @@ Route::group(['middleware' => ['auth:api', 'role:student,api']], function () {
      */
     Route::get('/my-learning/{course}/units/{unit}/lessons/{lesson}/duration', [LessonController::class, 'getDurationForCourseUnit']);
 
-    /**
-    |--------------------------------------------------------------------------
-    | Units & Lessons (flat, read-only)
-    |--------------------------------------------------------------------------
+    /*
+     * Flat Learning-module URLs (GET /api/v1/units/..., /api/v1/lessons/...) live in
+     * Modules/LearningModule/routes/api.php with auth:api + permission middleware only.
+     * Duplicating them here with role:student overwrote those routes and blocked other roles (e.g. auditor).
      */
-    /**
-     * @name   Units by Course
-     * @path   GET /api/v1/units/course/{course}
-     * @desc   List units for a course (enrolled courses only via scope).
-     * @param  {course: slug}
-     * @controller UnitController@byCourse
-     */
-    Route::get('/units/course/{course}', [UnitController::class, 'byCourse']);
-
-    /**
-     * @name   View Unit by Id
-     * @path   GET /api/v1/units/{unit}
-     * @desc   View a unit (must belong to student's enrolled course).
-     * @param  {unit: slug}
-     * @controller UnitController@show
-     */
-    Route::get('/units/{unit}', [UnitController::class, 'show']);
-
-    /**
-     * @name   Unit Duration
-     * @path   GET /api/v1/units/{unit}/duration
-     * @desc   Get duration of a unit.
-     * @controller UnitController@getDuration
-     */
-    Route::get('/units/{unit}/duration', [UnitController::class, 'getDuration']);
-
-    /**
-     * @name   Lessons by Unit
-     * @path   GET /api/v1/lessons/unit/{unit}
-     * @desc   List lessons in a unit (unit must belong to enrolled course).
-     * @param  {unit: slug}
-     * @controller LessonController@byUnit
-     */
-    Route::get('/lessons/unit/{unit}', [LessonController::class, 'byUnit']);
-
-    /**
-     * @name   View Lesson by Id
-     * @path   GET /api/v1/lessons/{lesson}
-     * @desc   View a lesson (must belong to student's enrolled course).
-     * @param  {lesson: slug}
-     * @controller LessonController@show
-     */
-    Route::get('/lessons/{lesson}', [LessonController::class, 'show']);
-
-    /**
-     * @name   Lesson Duration
-     * @path   GET /api/v1/lessons/{lesson}/duration
-     * @desc   Get duration of a lesson.
-     * @controller LessonController@getDuration
-     */
-    Route::get('/lessons/{lesson}/duration', [LessonController::class, 'getDuration']);
 });

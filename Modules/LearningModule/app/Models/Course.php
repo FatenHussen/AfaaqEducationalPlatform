@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Spatie\Translatable\HasTranslations;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\LearningModule\Models\Enrollment;
@@ -93,6 +94,25 @@ class Course extends Model implements HasMedia
     {
         return 'slug';
     }
+
+    /**
+     * Resolve `{course}` in URLs by slug, or by numeric {@see $course_id} when the segment is numeric (Postman / legacy clients).
+     */
+    public function resolveRouteBinding($value, $field = null): static
+    {
+        $course = static::query()->where('slug', $value)->first();
+
+        if (! $course && is_numeric($value)) {
+            $course = static::query()->where('course_id', (int) $value)->first();
+        }
+
+        if (! $course) {
+            throw (new ModelNotFoundException)->setModel(static::class, [(string) $value]);
+        }
+
+        return $course;
+    }
+
     public function quizzes(): MorphMany
     {
         return $this->morphMany(Quiz::class, 'quizable');
@@ -142,6 +162,11 @@ class Course extends Model implements HasMedia
     {
         return $this->hasMany(Unit::class, 'course_id', 'course_id')
             ->orderBy('unit_order');
+    }
+
+    public function contentAudits(): HasMany
+    {
+        return $this->hasMany(CourseContentAudit::class, 'course_id', 'course_id');
     }
 
     public function enrollments(): HasMany
