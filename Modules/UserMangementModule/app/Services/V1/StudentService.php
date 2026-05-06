@@ -2,8 +2,11 @@
 
 namespace Modules\UserMangementModule\Services\V1;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Modules\AssesmentModule\Models\Quiz;
+use Modules\LearningModule\Models\Course;
 use Modules\UserMangementModule\DTOs\StudentDTO;
 use Modules\UserMangementModule\Enums\UserRole;
 use Modules\UserMangementModule\Models\User;
@@ -13,32 +16,31 @@ class StudentService
     private const CACHE_TTL = 3600;
     private const TAG_GLOBAL = 'students';
     private const TAG_PREFIX_STUDENT = 'student_';
+    private const CACHE_VERSION_KEY = 'students_cache_version';
 
     public function list(array $filters, int $perPage = 15)
     {
         ksort($filters);
         $filtersKey = md5(json_encode($filters));
-        $cacheKey = "students_list_{$filtersKey}_limit_{$perPage}";
+        $cacheVersion = $this->getCacheVersion();
+        $cacheKey = "students_list_{$filtersKey}_limit_{$perPage}_v{$cacheVersion}";
 
-        return Cache::tags([self::TAG_GLOBAL])->remember(
-            $cacheKey,
-            self::CACHE_TTL,
-            function () use ($filters, $perPage) {
-                return User::whereHas('studentProfile')
-                    ->with(['media', 'studentProfile', 'roles.permissions'])
-                    ->filters($filters)
-                    ->paginate($perPage);
-            }
-        );
+        return $this->rememberWithTags([self::TAG_GLOBAL], $cacheKey, function () use ($filters, $perPage) {
+            return User::whereHas('studentProfile')
+                ->with(['media', 'studentProfile', 'roles.permissions'])
+                ->filters($filters)
+                ->paginate($perPage);
+        });
     }
 
     public function findById(int $id)
     {
-        $cacheKey = "student_details_{$id}";
+        $cacheVersion = $this->getCacheVersion();
+        $cacheKey = "student_details_{$id}_v{$cacheVersion}";
 
-        return Cache::tags([self::TAG_GLOBAL, self::TAG_PREFIX_STUDENT . $id])->remember(
+        return $this->rememberWithTags(
+            [self::TAG_GLOBAL, self::TAG_PREFIX_STUDENT . $id],
             $cacheKey,
-            self::CACHE_TTL,
             function () use ($id) {
                 return User::with(['media', 'studentProfile', 'roles.permissions'])
                     ->findOrFail($id);
@@ -46,11 +48,63 @@ class StudentService
         );
     }
 
+    /**
+     * Student account (user + profile) and enrolled courses only.
+     *
+     * @return array{student: User, courses: Collection<int, Course>}
+     */
+    public function findWithCourses(User $user): array
+    {
+        $user->loadMissing(['media', 'studentProfile', 'roles.permissions']);
+
+        return [
+            'student' => $user,
+            'courses' => $this->enrolledCoursesForUser($user),
+        ];
+    }
+
+    /**
+     * Student account (user + profile), quizzes (assigned / attempted), and enrolled courses.
+     *
+     * @return array{student: User, quizzes: Collection<int, Quiz>, courses: Collection<int, Course>}
+     */
+    public function findWithQuizzes(User $user): array
+    {
+        $user->loadMissing(['media', 'studentProfile', 'roles.permissions']);
+
+        $quizzes = collect();
+
+        if ($user->studentProfile) {
+            $quizzes = Quiz::query()
+                ->with(['quizable', 'instructor'])
+                ->forStudent((int) $user->studentProfile->getKey())
+                ->orderByDesc('quizzes.id')
+                ->get();
+        }
+
+        return [
+            'student' => $user,
+            'quizzes' => $quizzes,
+            'courses' => $this->enrolledCoursesForUser($user),
+        ];
+    }
+
+    /**
+     * @return Collection<int, Course>
+     */
+    private function enrolledCoursesForUser(User $user): Collection
+    {
+        return $user->enrolledCourses()
+            ->with(['courseCategory', 'creator', 'instructors'])
+            ->orderByPivot('enrolled_at', 'desc')
+            ->get();
+    }
+
     public function create(array $data)
     {
         $studentDTO = StudentDTO::fromArray($data);
 
-        return DB::transaction(function () use ($studentDTO) {
+        $user = DB::transaction(function () use ($studentDTO) {
             $userData = $studentDTO->userData();
             $studentData = $studentDTO->studentData();
 
@@ -61,18 +115,21 @@ class StudentService
             }
 
             $user->studentProfile()->create($studentData);
-
             $user->assignRole(UserRole::STUDENT->value);
 
             return $user->load(['media', 'studentProfile', 'roles.permissions']);
         });
+
+        $this->invalidateCache();
+
+        return $user;
     }
 
     public function update(User $user, array $data)
     {
         $studentDTO = StudentDTO::fromArray($data);
 
-        return DB::transaction(function () use ($studentDTO, $user) {
+        $updatedUser = DB::transaction(function () use ($studentDTO, $user) {
             $user->update($studentDTO->userData());
 
             if (isset($studentDTO->avatar)) {
@@ -87,6 +144,10 @@ class StudentService
 
             return $user->load(['media', 'studentProfile', 'roles.permissions'])->refresh();
         });
+
+        $this->invalidateCache($user->id);
+
+        return $updatedUser;
     }
 
     public function delete(User $user): void
@@ -96,7 +157,7 @@ class StudentService
             $user->delete();
         });
 
-        Cache::tags([self::TAG_GLOBAL, self::TAG_PREFIX_STUDENT . $user->id])->flush();
+        $this->invalidateCache($user->id);
     }
 
     public function fillProfileInfo(array $data)
@@ -117,5 +178,43 @@ class StudentService
         $user->assignRole(UserRole::STUDENT->value);
 
         return $user->load(['media', 'studentProfile', 'roles.permissions']);
+    }
+
+    private function rememberWithTags(array $tags, string $cacheKey, callable $callback)
+    {
+        if (Cache::supportsTags()) {
+            return Cache::tags($tags)->remember($cacheKey, self::CACHE_TTL, $callback);
+        }
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, $callback);
+    }
+
+    private function invalidateCache(?int $studentId = null): void
+    {
+        if (Cache::supportsTags()) {
+            $tags = [self::TAG_GLOBAL];
+            if ($studentId !== null) {
+                $tags[] = self::TAG_PREFIX_STUDENT . $studentId;
+            }
+
+            Cache::tags($tags)->flush();
+            return;
+        }
+
+        $this->bumpCacheVersion();
+    }
+
+    private function getCacheVersion(): int
+    {
+        return (int) Cache::rememberForever(self::CACHE_VERSION_KEY, fn () => 1);
+    }
+
+    private function bumpCacheVersion(): void
+    {
+        if (!Cache::has(self::CACHE_VERSION_KEY)) {
+            Cache::forever(self::CACHE_VERSION_KEY, 1);
+        }
+
+        Cache::increment(self::CACHE_VERSION_KEY);
     }
 }

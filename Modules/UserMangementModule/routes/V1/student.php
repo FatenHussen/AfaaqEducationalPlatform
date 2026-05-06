@@ -6,6 +6,7 @@ use Modules\LearningModule\Http\Controllers\EnrollmentController;
 use Modules\LearningModule\Http\Controllers\LessonController;
 use Modules\LearningModule\Http\Controllers\UnitController;
 use Modules\ReportingModule\Http\Controllers\StudentDashboardController;
+use Modules\UserMangementModule\Http\Controllers\Api\V1\StudentController;
 
 /**
  |----------------------------------------------------
@@ -21,20 +22,36 @@ use Modules\ReportingModule\Http\Controllers\StudentDashboardController;
  * @access Student Only
  * @scope  CourseAccessScope (filters courses by student to insure students can only access their enrolled courses)
  */
-Route::group(['middleware' => ['auth:api', 'role:student']], function () {
+Route::group(['middleware' => ['auth:api', 'role:student,api']], function () {
     /**
     |--------------------------------------------------------------------------
     | Student Dashboard (Reporting Module)
     |--------------------------------------------------------------------------
      */
     /**
-     * @name   Student Dashboard
-     * @path   GET /api/v1/dashboard
+     * @name   Student Dashboard (self)
+     * @path   GET /api/v1/student/dashboard
      * @desc   Retrieve dashboard data for the authenticated student (progress, enrolled courses, etc.).
+     * @note   Distinct from GET /api/v1/student/dashboard/{studentId} (ReportingModule); avoids route clash with instructor dashboard.
      * @controller StudentDashboardController@dashboard
      */
-    Route::get('/dashboard', [StudentDashboardController::class, 'dashboard']);
-    
+    Route::get('/student/dashboard', [StudentDashboardController::class, 'dashboard']);
+
+    /**
+     * @name   My Courses
+     * @path   GET /api/v1/me/with-courses
+     * @desc   Authenticated student: account + profile and enrolled courses only.
+     * @controller StudentController@meWithCourses
+     */
+    Route::get('/me/with-courses', [StudentController::class, 'meWithCourses']);
+
+    /**
+     * @name   My Profile With Quizzes And Courses
+     * @path   GET /api/v1/me/with-quizzes
+     * @desc   Authenticated student: account + profile, quizzes (assigned / attempted), enrolled courses.
+     * @controller StudentController@meWithQuizzes
+     */
+    Route::get('/me/with-quizzes', [StudentController::class, 'meWithQuizzes']);
 
     /**
     |--------------------------------------------------------------------------
@@ -110,54 +127,54 @@ Route::group(['middleware' => ['auth:api', 'role:student']], function () {
      * @path   GET /api/v1/my-learning/{course}/units
      * @desc   List units for an enrolled course.
      * @param  {course: slug}
-     * @controller UnitController@index
+     * @controller UnitController@byCourse
      */
-    Route::get('/my-learning/{course}/units', [UnitController::class, 'index']);
+    Route::get('/my-learning/{course}/units', [UnitController::class, 'byCourse']);
 
     /**
      * @name   View Unit
      * @path   GET /api/v1/my-learning/{course}/units/{unit}
      * @desc   View a unit within an enrolled course.
      * @param  {course: slug, unit: slug}
-     * @controller UnitController@show
+     * @controller UnitController@showForCourse
      */
-    Route::get('/my-learning/{course}/units/{unit}', [UnitController::class, 'show']);
+    Route::get('/my-learning/{course}/units/{unit}', [UnitController::class, 'showForCourse']);
 
     /**
      * @name   Get Unit Duration
      * @path   GET /api/v1/my-learning/{course}/units/{unit}/duration
      * @desc   Get duration of a unit.
      * @param  {course: slug, unit: slug}
-     * @controller UnitController@getDuration
+     * @controller UnitController@getDurationForCourse
      */
-    Route::get('/my-learning/{course}/units/{unit}/duration', [UnitController::class, 'getDuration']);
+    Route::get('/my-learning/{course}/units/{unit}/duration', [UnitController::class, 'getDurationForCourse']);
 
     /**
      * @name   List Unit Lessons
      * @path   GET /api/v1/my-learning/{course}/units/{unit}/lessons
      * @desc   List lessons in a unit within an enrolled course.
      * @param  {course: slug, unit: slug}
-     * @controller LessonController@index
+     * @controller LessonController@indexForCourseUnit
      */
-    Route::get('/my-learning/{course}/units/{unit}/lessons', [LessonController::class, 'index']);
+    Route::get('/my-learning/{course}/units/{unit}/lessons', [LessonController::class, 'indexForCourseUnit']);
 
     /**
      * @name   View Lesson
      * @path   GET /api/v1/my-learning/{course}/units/{unit}/lessons/{lesson}
      * @desc   View a lesson within an enrolled course unit.
      * @param  {course: slug, unit: slug, lesson: slug}
-     * @controller LessonController@show
+     * @controller LessonController@showForCourseUnit
      */
-    Route::get('/my-learning/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'show']);
+    Route::get('/my-learning/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'showForCourseUnit']);
 
     /**
      * @name   Get Lesson Duration
      * @path   GET /api/v1/my-learning/{course}/units/{unit}/lessons/{lesson}/duration
      * @desc   Get duration of a lesson.
      * @param  {course: slug, unit: slug, lesson: slug}
-     * @controller LessonController@getDuration
+     * @controller LessonController@getDurationForCourseUnit
      */
-    Route::get('/my-learning/{course}/units/{unit}/lessons/{lesson}/duration', [LessonController::class, 'getDuration']);
+    Route::get('/my-learning/{course}/units/{unit}/lessons/{lesson}/duration', [LessonController::class, 'getDurationForCourseUnit']);
 
     /**
     |--------------------------------------------------------------------------

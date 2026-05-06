@@ -15,7 +15,7 @@ class EnrollmentReportBuilder extends EnrollmentBuilder
     public function applyReportFilters(array $filters): self
     {
         if (isset($filters['student_id'])) {
-            $this->where('student_id', $filters['student_id']);
+            $this->where('learner_id', $filters['student_id']);
         }
 
         if (isset($filters['course_id'])) {

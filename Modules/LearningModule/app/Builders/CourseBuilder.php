@@ -53,16 +53,34 @@ class CourseBuilder extends Builder
     }
 
     /**
-     * Filter courses by course type
+     * Filter courses by course category.
      *
-     * @param int $courseTypeId
+     * @param int $courseCategoryId
      * @return self
+     */
+    public function byCourseCategory(int $courseCategoryId): self
+    {
+        return $this->where('course_category_id', $courseCategoryId);
+    }
+
+    /**
+     * @deprecated Use {@see byCourseCategory}. Retained for query-string alias `course_type_id`.
      */
     public function byCourseType(int $courseTypeId): self
     {
-        return $this->where('course_type_id', $courseTypeId);
+        return $this->byCourseCategory($courseTypeId);
     }
 
+    /**
+     * Filter courses by program. No DB link exists yet; parameter is accepted to avoid runtime errors.
+     *
+     * @param int $programId
+     * @return self
+     */
+    public function byProgram(int $programId): self
+    {
+        return $this;
+    }
 
     /**
      * Filter courses by language
@@ -158,7 +176,7 @@ class CourseBuilder extends Builder
     public function enrollable(): self
     {
         return $this->published()
-            ->whereHas('courseType', function ($query) {
+            ->whereHas('courseCategory', function ($query) {
                 $query->where('is_active', true);
             });
     }
@@ -265,7 +283,7 @@ class CourseBuilder extends Builder
      */
     public function withRelations(): self
     {
-        return $this->with(['courseType', 'instructors', 'creator']);
+        return $this->with(['courseCategory', 'instructors', 'creator']);
     }
 
     /**
@@ -275,17 +293,25 @@ class CourseBuilder extends Builder
      */
     public function withAllRelations(): self
     {
-        return $this->with(['courseType', 'instructors', 'creator', 'units', 'enrollments']);
+        return $this->with(['courseCategory', 'instructors', 'creator', 'units', 'enrollments']);
     }
 
     /**
-     * Eager load course type relationship
+     * Eager load course category relationship.
      *
      * @return self
      */
+    public function withCourseCategory(): self
+    {
+        return $this->with('courseCategory');
+    }
+
+    /**
+     * @deprecated Use {@see withCourseCategory}.
+     */
     public function withCourseType(): self
     {
-        return $this->with('courseType');
+        return $this->withCourseCategory();
     }
 
     /**
@@ -404,12 +430,16 @@ class CourseBuilder extends Builder
             $query = $query->byStatus($request->input('status'));
         }
 
-        // Filter by course type
-        if ($request->filled('course_type_id')) {
-            $query = $query->byCourseType((int) $request->input('course_type_id'));
+        if ($request->filled('course_category_id')) {
+            $query = $query->byCourseCategory((int) $request->input('course_category_id'));
         }
 
-        // Filter by program
+        // Legacy query param alias (maps to course_category_id)
+        if ($request->filled('course_type_id')) {
+            $query = $query->byCourseCategory((int) $request->input('course_type_id'));
+        }
+
+        // Filter by program (no course↔program schema yet; avoids undefined method if param is sent)
         if ($request->filled('program_id')) {
             $query = $query->byProgram((int) $request->input('program_id'));
         }

@@ -15,7 +15,7 @@ class EnrollmentReportFilter
     public static function apply(EnrollmentBuilder $query, array $filters): EnrollmentBuilder
     {
         if (isset($filters['student_id'])) {
-            $query->where('student_id', $filters['student_id']);
+            $query->where('learner_id', $filters['student_id']);
         }
 
         if (isset($filters['course_id'])) {

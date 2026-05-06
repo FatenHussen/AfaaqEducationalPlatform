@@ -3,7 +3,9 @@
 namespace Modules\LearningModule\Http\Controllers;
 
 use Exception;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Modules\LearningModule\Enums\CourseStatus;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use App\Traits\CachesQueries;
 use Illuminate\Http\JsonResponse;
@@ -300,24 +302,46 @@ class CourseController extends Controller
      */
     public function changeStatus(ChangeStatusCourseRequest $request, Course $course): JsonResponse
     {
+        $newStatus = $request->validated()['status'];
+
         try {
-            $updatedCourse = $this->courseService->changeStatus($course, $request->validated()['status']);
+            $updatedCourse = $this->courseService->changeStatus($course, $newStatus);
 
             if (!$updatedCourse) {
-                throw new Exception('Invalid status provided or course cannot be changed to this status.', 422);
+                if ($newStatus === CourseStatus::PUBLISHED->value) {
+                    throw new HttpException(
+                        422,
+                        'Course cannot be published. Please ensure it has at least one instructor, one unit, and all required information.'
+                    );
+                }
+                throw new HttpException(422, 'Invalid status provided or course cannot be changed to this status.');
             }
 
             return self::success(
                 new CourseResource($updatedCourse),
                 'Course status changed successfully.'
             );
-        } catch (Exception $e) {
-            Log::error('Unexpected error changing course status', [
+        } catch (HttpException $e) {
+            throw $e;
+        } catch (QueryException $e) {
+            Log::error('Database error changing course status', [
                 'course_id' => $course->course_id ?? null,
-                'status' => $request->validated()['status'] ?? null,
+                'status' => $newStatus,
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
             ]);
+            throw $e;
+        } catch (Exception $e) {
+            Log::error('Unexpected error changing course status', [
+                'course_id' => $course->course_id ?? null,
+                'status' => $newStatus,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+            $code = (int) $e->getCode();
+            if ($code >= 400 && $code < 500) {
+                throw $e;
+            }
             throw new Exception('An error occurred while changing the course status.', 500);
         }
     }
@@ -506,7 +530,8 @@ class CourseController extends Controller
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
             ]);
-            throw new Exception('An error occurred while removing the instructor.', 500);
+          //  throw new Exception('An error occurred while removing the instructor.', 500);
+          throw $e;
         }
     }
 

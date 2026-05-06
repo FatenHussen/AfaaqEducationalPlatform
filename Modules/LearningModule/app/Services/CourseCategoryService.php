@@ -5,8 +5,11 @@ namespace Modules\LearningModule\Services;
 use App\Traits\CachesQueries;
 use App\Traits\HelperTrait;
 use Exception;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Modules\LearningModule\Models\CourseCategory;
 
 /**
@@ -39,6 +42,14 @@ class CourseCategoryService
                 $data['slug'] = $this->ensureUniqueSlug($data['slug'], CourseCategory::class);
             }
 
+            // Required non-null slug; Str::slug can be empty for some inputs — avoid failed INSERTs
+            if (! isset($data['slug']) || $data['slug'] === '') {
+                $data['slug'] = $this->ensureUniqueSlug(
+                    'category-' . Str::lower(Str::random(10)),
+                    CourseCategory::class
+                );
+            }
+
             $courseCategory = CourseCategory::create($data);
 
             // Clear cache after creation
@@ -51,6 +62,19 @@ class CourseCategoryService
             ]);
 
             return $courseCategory;
+        } catch (QueryException $e) {
+            if ($this->isUniqueConstraintViolation($e)) {
+                throw new Exception(
+                    'A course category with this English name or slug already exists.',
+                    422
+                );
+            }
+            Log::error('Failed to create course category', [
+                'data' => $data,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         } catch (Exception $e) {
             Log::error("Failed to create course category", [
                 'data' => $data,
@@ -93,6 +117,20 @@ class CourseCategoryService
             ]);
 
             return $courseCategory->fresh();
+        } catch (QueryException $e) {
+            if ($this->isUniqueConstraintViolation($e)) {
+                throw new Exception(
+                    'A course category with this English name or slug already exists.',
+                    422
+                );
+            }
+            Log::error('Failed to update course category', [
+                'course_category_id' => $courseCategory->course_category_id,
+                'data' => $data,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         } catch (Exception $e) {
             Log::error("Failed to update course category", [
                 'course_category_id' => $courseCategory->course_category_id,
@@ -183,7 +221,8 @@ class CourseCategoryService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return null;
+          //  return null;
+            throw $e;
         }
     }
 
@@ -365,5 +404,22 @@ class CourseCategoryService
         if ($courseCategory) {
             $this->flushTags(["course_category.{$courseCategory->course_category_id}"]);
         }
+    }
+
+    /**
+     * Detect duplicate key / unique constraint failures across PDO drivers.
+     */
+    protected function isUniqueConstraintViolation(QueryException $e): bool
+    {
+        if ($e instanceof UniqueConstraintViolationException) {
+            return true;
+        }
+        $sqlState = $e->errorInfo[0] ?? null;
+        if (in_array($sqlState, ['23000', '23505'], true)) {
+            return true;
+        }
+        $code = $e->errorInfo[1] ?? null;
+
+        return $code === 1062 || $code === 19; // MySQL duplicate entry; SQLite constraint
     }
 }

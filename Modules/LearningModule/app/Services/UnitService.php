@@ -5,6 +5,7 @@ namespace Modules\LearningModule\Services;
 use App\Traits\CachesQueries;
 use App\Traits\HelperTrait;
 use Exception;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\LearningModule\Models\Course;
@@ -31,12 +32,11 @@ class UnitService
         try {
             $data['course_id'] = $course->course_id;
 
-            // Set unit_order if not provided (set to next available order)
+            // unit_order unique index applies to all rows including soft-deleted; align checks with DB
             if (!isset($data['unit_order'])) {
-                $data['unit_order'] = $this->getNextOrder(Unit::class, 'course_id', $course->course_id, 'unit_order');
+                $data['unit_order'] = $this->nextUnitOrderForCourse($course->course_id);
             } else {
-                // Validate order uniqueness
-                $this->validateOrder(Unit::class, 'course_id', $course->course_id, $data['unit_order'], 'unit_order', 'unit_id', null, 'Unit');
+                $this->assertUnitOrderAvailable($course->course_id, (int) $data['unit_order'], null);
             }
 
             $unit = Unit::create($data);
@@ -52,6 +52,14 @@ class UnitService
             ]);
 
             return $unit;
+        } catch (QueryException $e) {
+            Log::error("Failed to create unit", [
+                'course_id' => $course->course_id,
+                'data' => $data,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         } catch (Exception $e) {
             Log::error("Failed to create unit", [
                 'course_id' => $course->course_id,
@@ -59,6 +67,11 @@ class UnitService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            $code = $e->getCode();
+            if ($code >= 400 && $code < 600 && $code !== 0) {
+                throw $e;
+            }
+
             return null;
         }
     }
@@ -74,9 +87,9 @@ class UnitService
     public function update(Unit $unit, array $data): ?Unit
     {
         try {
-            // Handle order change
-            if (isset($data['unit_order']) && $data['unit_order'] != $unit->unit_order) {
-                $this->validateOrder(Unit::class, 'course_id', $unit->course_id, $data['unit_order'], 'unit_order', 'unit_id', $unit->unit_id, 'Unit');
+            // Handle order change (unique index includes soft-deleted rows)
+            if (isset($data['unit_order']) && (int) $data['unit_order'] !== (int) $unit->unit_order) {
+                $this->assertUnitOrderAvailable($unit->course_id, (int) $data['unit_order'], $unit->unit_id);
             }
 
             $unit->update($data);
@@ -205,7 +218,7 @@ class UnitService
     {
         try {
             return DB::transaction(function () use ($unit, $newOrder) {
-                $this->validateOrder(Unit::class, 'course_id', $unit->course_id, $newOrder, 'unit_order', 'unit_id', $unit->unit_id, 'Unit');
+                $this->assertUnitOrderAvailable($unit->course_id, $newOrder, $unit->unit_id);
 
                 // Shift other units if needed
                 $this->shiftOrders(Unit::class, 'course_id', $unit->course_id, $unit->unit_order, $newOrder, 'unit_order', 'unit_id', $unit->unit_id);
@@ -308,6 +321,38 @@ class UnitService
     public function getUnitCount(Course $course): int
     {
         return Unit::where('course_id', $course->course_id)->count();
+    }
+
+    /**
+     * Next unit_order after existing rows for this course, including soft-deleted (matches unique index).
+     */
+    private function nextUnitOrderForCourse(int $courseId): int
+    {
+        $max = Unit::withTrashed()
+            ->where('course_id', $courseId)
+            ->max('unit_order');
+
+        return (int) (($max ?? 0) + 1);
+    }
+
+    /**
+     * Ensure unit_order is unused for this course (unique constraint counts soft-deleted rows).
+     *
+     * @throws Exception
+     */
+    private function assertUnitOrderAvailable(int $courseId, int $order, ?int $excludeUnitId): void
+    {
+        $query = Unit::withTrashed()
+            ->where('course_id', $courseId)
+            ->where('unit_order', $order);
+
+        if ($excludeUnitId !== null) {
+            $query->where('unit_id', '!=', $excludeUnitId);
+        }
+
+        if ($query->exists()) {
+            throw new Exception("Unit order {$order} already exists.", 422);
+        }
     }
 
     /**

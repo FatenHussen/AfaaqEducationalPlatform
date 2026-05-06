@@ -109,6 +109,25 @@ class CourseResource extends JsonResource
                 $this->relationLoaded('enrollments'),
                 fn() => $this->enrollments->count()
             ),
+
+            /** Present when course is loaded via {@see User::enrolledCourses()} */
+            'enrollment' => $this->when(
+                $this->pivot !== null,
+                function () {
+                    $p = $this->pivot;
+                    $status = $p->enrollment_status ?? null;
+
+                    return [
+                        'id' => $p->enrollment_id,
+                        'enrollment_type' => $p->enrollment_type,
+                        'enrollment_status' => $status instanceof \BackedEnum ? $status->value : $status,
+                        'progress_percentage' => $p->progress_percentage !== null ? (float) $p->progress_percentage : null,
+                        'final_grade' => $p->final_grade !== null ? (float) $p->final_grade : null,
+                        'enrolled_at' => $p->enrolled_at?->toDateTimeString(),
+                        'completed_at' => $p->completed_at?->toDateTimeString(),
+                    ];
+                }
+            ),
         ];
     }
 }

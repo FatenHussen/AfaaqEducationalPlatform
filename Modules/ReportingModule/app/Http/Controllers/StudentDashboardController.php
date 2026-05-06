@@ -20,10 +20,20 @@ class StudentDashboardController extends Controller
         $this->dashboardService = $dashboardService;
     }
 
-    public function dashboard(int $studentId): JsonResponse
+    public function dashboard(?int $studentId = null): JsonResponse
     {
         try {
-            $dashboard = $this->dashboardService->getStudentDashboard($studentId);
+            $resolvedId = $studentId ?? auth()->id();
+
+            if ($resolvedId === null) {
+                return $this->error('Unauthenticated.', 401);
+            }
+
+            if ($studentId !== null && (int) $studentId !== (int) auth()->id()) {
+                return $this->error('Forbidden.', 403);
+            }
+
+            $dashboard = $this->dashboardService->getStudentDashboard((int) $resolvedId);
 
             return $this->success(
                 new StudentDashboardResource($dashboard),

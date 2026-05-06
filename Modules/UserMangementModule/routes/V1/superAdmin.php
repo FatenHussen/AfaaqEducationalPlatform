@@ -13,8 +13,10 @@ use Modules\UserMangementModule\Http\Controllers\Api\V1\RoleController;
 use Modules\UserMangementModule\Http\Controllers\Api\V1\StudentController;
 use Modules\UserMangementModule\Http\Controllers\Api\V1\UserController;
 use Modules\ReportingModule\Http\Controllers\AdminDashboardController;
+use Modules\AssesmentModule\Http\Controllers\Api\V1\QuizController;
 use Spatie\Permission\Models\Permission;
-
+use Modules\AssesmentModule\Http\Controllers\Api\V1\QuestionController;
+use Modules\AssesmentModule\Http\Controllers\Api\V1\QuestionOptionController;
 /**
  | -----------------------------------------------------------------------------------------------
  |Super Admin Dashboard Routes
@@ -419,6 +421,8 @@ Route::group([
      */
     Route::get('/units/{unit}/can-delete', [UnitController::class, 'canBeDeleted']);
 
+    Route::put('/units/{unit}/move', [UnitController::class, 'moveToPosition']);
+
     /**
      * @name   Move Unit to Position
      * @path   PUT /api/v1/super-admin/units/{unit}/position
@@ -433,43 +437,43 @@ Route::group([
      * @path   GET /api/v1/super-admin/courses/{course}/units
      * @desc   Fetch all educational units associated with a specific course.
      * @param  {course: slug}
-     * @controller UnitController@index
+     * @controller UnitController@byCourse
      */
-    Route::get('/courses/{course}/units', [UnitController::class, 'index']);
+    Route::get('/courses/{course}/units', [UnitController::class, 'byCourse']);
 
     /**
      * @name   View Unit Details (nested)
      * @path   GET /api/v1/super-admin/courses/{course}/units/{unit}
      * @desc   Retrieve details for a single unit within its course context.
      * @param {course: slug, unit: slug}
-     * @controller UnitController@show
+     * @controller UnitController@showForCourse
      */
-    Route::get('/courses/{course}/units/{unit}', [UnitController::class, 'show']);
+    Route::get('/courses/{course}/units/{unit}', [UnitController::class, 'showForCourse']);
 
     /**
      * @name   Create Course Unit (nested)
      * @path   POST /api/v1/super-admin/courses/{course}/units
      * @desc   Add a new unit to a specific course.
      * @body   {title: string,...}
-     * @controller UnitController@store
+     * @controller UnitController@storeForCourse
      */
-    Route::post('/courses/{course}/units', [UnitController::class, 'store']);
+    Route::post('/courses/{course}/units', [UnitController::class, 'storeForCourse']);
 
     /**
      * @name   Update Course Unit (nested)
      * @path   PUT /api/v1/super-admin/courses/{course}/units/{unit}
      * @desc   Modify the title, content, or sequence of a specific unit.
-     * @controller UnitController@update
+     * @controller UnitController@updateForCourse
      */
-    Route::put('/courses/{course}/units/{unit}', [UnitController::class, 'update']);
+    Route::put('/courses/{course}/units/{unit}', [UnitController::class, 'updateForCourse']);
 
     /**
      * @name   Delete Course Unit (nested)
      * @path   DELETE /api/v1/super-admin/courses/{course}/units/{unit}
      * @desc   Soft Deletes a course unit.
-     * @controller UnitController@destroy
+     * @controller UnitController@destroyForCourse
      */
-    Route::delete('/courses/{course}/units/{unit}', [UnitController::class, 'destroy']);
+    Route::delete('/courses/{course}/units/{unit}', [UnitController::class, 'destroyForCourse']);
 
     /**
     |--------------------------------------------------------------------------
@@ -493,15 +497,6 @@ Route::group([
      * @controller LessonController@byUnit
      */
     Route::get('/lessons/unit/{unit}', [LessonController::class, 'byUnit']);
-
-    /**
-     * @name   Reorder Lessons in Unit
-     * @path   POST /api/v1/super-admin/lessons/unit/{unit}/reorder
-     * @desc   Reorder lessons within a unit.
-     * @param  {unit: slug}
-     * @controller LessonController@reorder
-     */
-    Route::post('/lessons/unit/{unit}/reorder', [LessonController::class, 'reorder']);
 
     /**
      * @name   Get Lesson Count for Unit
@@ -557,55 +552,47 @@ Route::group([
      */
     Route::get('/lessons/{lesson}/duration', [LessonController::class, 'getDuration']);
 
-    /**
-     * @name   Move Lesson to Position
-     * @path   PUT /api/v1/super-admin/lessons/{lesson}/position
-     * @desc   Change lesson order position.
-     * @param  {lesson: slug}
-     * @controller LessonController@moveToPosition
-     */
-    Route::put('/lessons/{lesson}/position', [LessonController::class, 'moveToPosition']);
-
+    
     /**
      * @name   List Lessons by Unit (nested)
      * @path   GET /api/v1/super-admin/courses/{course}/units/{unit}/lessons
      * @desc   Retrieve all lessons belonging to a specific course unit.
-     * @controller LessonController@index
+     * @controller LessonController@indexForCourseUnit
      */
-    Route::get('/courses/{course}/units/{unit}/lessons', [LessonController::class, 'index']);
+    Route::get('/courses/{course}/units/{unit}/lessons', [LessonController::class, 'indexForCourseUnit']);
 
     /**
      * @name   View Lesson Details (nested)
      * @path   GET /api/v1/super-admin/courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Fetch full content for a specific lesson.
-     * @controller LessonController@show
+     * @controller LessonController@showForCourseUnit
      */
-    Route::get('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'show']);
+    Route::get('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'showForCourseUnit']);
 
     /**
      * @name   Create Lesson for a course unit (nested)
      * @path   POST /api/v1/super-admin/courses/{course}/units/{unit}/lessons
      * @desc   Create new lesson belongs to a course unit.
      * @body   {title: string,....}
-     * @controller LessonController@store
+     * @controller LessonController@storeForCourseUnit
      */
-    Route::post('/courses/{course}/units/{unit}/lessons', [LessonController::class, 'store']);
+    Route::post('/courses/{course}/units/{unit}/lessons', [LessonController::class, 'storeForCourseUnit']);
 
     /**
      * @name   Update Lesson (nested)
      * @path   PUT /api/v1/super-admin/courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Edit lesson content
-     * @controller LessonController@update
+     * @controller LessonController@updateForCourseUnit
      */
-    Route::put('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'update']);
+    Route::put('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'updateForCourseUnit']);
 
     /**
      * @name   Delete Lesson (nested)
      * @path   DELETE /api/v1/super-admin/courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Soft Deletes a lesson from the unit.
-     * @controller LessonController@destroy
+     * @controller LessonController@destroyForCourseUnit
      */
-    Route::delete('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'destroy']);
+    Route::delete('/courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'destroyForCourseUnit']);
 
     /**
     |--------------------------------------------------------------------------
@@ -721,6 +708,24 @@ Route::group([
      */
    Route::get('/students',[StudentController::class,'index']);
 
+    /**
+      * @name   View Student With Courses
+      * @path   GET /api/v1/super-admin/students/{student}/with-courses
+      * @desc   Student account and enrolled courses only.
+      * @param  {student: user id}
+      * @controller  StudentController@showWithCourses
+     */
+   Route::get('/students/{student}/with-courses', [StudentController::class, 'showWithCourses']);
+
+    /**
+      * @name   View Student With Quizzes
+      * @path   GET /api/v1/super-admin/students/{student}/with-quizzes
+      * @desc   Student account, profile, enrolled courses, and quizzes (assigned / attempted).
+      * @param  {student: user id}
+      * @controller  StudentController@showWithQuizzes
+     */
+   Route::get('/students/{student}/with-quizzes', [StudentController::class, 'showWithQuizzes']);
+
    /**
      * @name   View Student Details
      * @path   GET /api/v1/super-admin/students/{student}
@@ -802,7 +807,22 @@ Route::group([
     Route::delete('/auditors/{auditor}',[AuditorController::class,'destroy']);
    
 
-    Route::apiResource('roles', RoleController::class);
+   Route::apiResource('roles', RoleController::class)->names('super-admin.roles');
     Route::get('permissions', [PermissionController::class, 'index']);
     
+    /**Assesment Module */
+
+    /*Quizzes*/
+    Route::apiResource('quizzes', QuizController::class);
+    Route::post('quizzes/{quiz}/publish',   [QuizController::class, 'publish']);
+    Route::post('quizzes/{quiz}/unpublish', [QuizController::class, 'unpublish']);
+    Route::post('quizzes/{quiz}/archive', [QuizController::class,'archive']);
+    /**Questions*/
+    Route::apiResource('questions', QuestionController::class);
+    /*
+     Question Options
+    */
+    Route::apiResource('question-options', QuestionOptionController::class);
+
+
 });

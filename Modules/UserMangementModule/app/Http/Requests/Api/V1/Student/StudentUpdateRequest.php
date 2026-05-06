@@ -2,11 +2,13 @@
 
 namespace Modules\UserMangementModule\Http\Requests\Api\V1\Student;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\Password;
+use Modules\UserMangementModule\Enums\EducationalLevel;
 
-class StudentUpdateRequest extends FormRequest
+class StudentUpdateRequest extends ApiFormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -27,7 +29,7 @@ class StudentUpdateRequest extends FormRequest
             'date_of_birth'=>'sometimes|date',
             'gender'=>['sometimes',Rule::in(['male','female'])],
             'address'=>'sometimes|nullable|max:500',
-            'education_level'=>'sometimes|string',
+            'education_level' => ['sometimes', new Enum(EducationalLevel::class)],
             'country'=>'sometimes|string',
             'bio' => 'sometimes|nullable|string|max:1000',
             'specialization' => 'sometimes|nullable|string|max:255',

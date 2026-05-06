@@ -20,6 +20,9 @@ class PermissionSeeder extends Seeder
             'list-roles',
             'show-roles',
 
+            // permission catalogue (assign via roles that may manage roles)
+            'list-permissions',
+
             //users permissions (all users accounts)
             'create-user',
             'update-user',
@@ -160,7 +163,7 @@ class PermissionSeeder extends Seeder
          
 
          foreach($permissions as $permission){
-            Permission::create(['name'=>$permission , 'guard_name'=>'api']);
+            Permission::findOrCreate($permission, 'api');
         }
     }
 }

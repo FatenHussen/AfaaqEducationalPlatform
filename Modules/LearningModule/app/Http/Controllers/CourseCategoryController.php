@@ -4,6 +4,7 @@ namespace Modules\LearningModule\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Exception;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -90,11 +91,21 @@ class CourseCategoryController extends Controller
                 'Course category created successfully.',
                 201
             );
+        } catch (QueryException $e) {
+            Log::error('Database error creating course category', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         } catch (Exception $e) {
             Log::error('Unexpected error creating course category', [
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
             ]);
+            $code = (int) $e->getCode();
+            if ($code >= 400 && $code < 500) {
+                throw $e;
+            }
             throw new Exception('An error occurred while creating the course category.', 500);
         }
     }
@@ -143,12 +154,23 @@ class CourseCategoryController extends Controller
                 new CourseCategoryResource($updatedCourseCategory),
                 'Course category updated successfully.'
             );
+        } catch (QueryException $e) {
+            Log::error('Database error updating course category', [
+                'course_category_id' => $courseCategory->course_category_id ?? null,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         } catch (Exception $e) {
             Log::error('Unexpected error updating course category', [
                 'course_category_id' => $courseCategory->course_category_id ?? null,
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
             ]);
+            $code = (int) $e->getCode();
+            if ($code >= 400 && $code < 500) {
+                throw $e;
+            }
             throw new Exception('An error occurred while updating the course category.', 500);
         }
     }
@@ -233,7 +255,8 @@ class CourseCategoryController extends Controller
                 'user_id' => Auth::id(),
                 'error' => $e->getMessage(),
             ]);
-            throw new Exception('An error occurred while deactivating the course category.', 500);
+         //   throw new Exception('An error occurred while deactivating the course category.', 500);
+         throw $e;
         }
     }
 }

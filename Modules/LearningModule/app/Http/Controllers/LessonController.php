@@ -14,6 +14,7 @@ use Modules\LearningModule\Http\Requests\Lesson\ReorderLessonsRequest;
 use Modules\LearningModule\Http\Requests\Lesson\StoreLessonRequest;
 use Modules\LearningModule\Http\Requests\Lesson\UpdateLessonRequest;
 use Modules\LearningModule\Http\Resources\LessonResource;
+use Modules\LearningModule\Models\Course;
 use Modules\LearningModule\Models\Lesson;
 use Modules\LearningModule\Models\Unit;
 use Modules\LearningModule\Services\LessonService;
@@ -41,11 +42,11 @@ class LessonController extends Controller
     public function __construct(LessonService $lessonService)
     {
         $this->lessonService = $lessonService;
-         $this->middleware('permission:list-lessons')->only('index');
-        $this->middleware('permission:show-lesson')->only('show');
-        $this->middleware('permission:create-lesson')->only('store');
-        $this->middleware('permission:update-lesson')->only('update');
-        $this->middleware('permission:delete-lesson')->only('destroy');
+        $this->middleware('permission:list-lessons')->only(['index', 'indexForCourseUnit']);
+        $this->middleware('permission:show-lesson')->only(['show', 'showForCourseUnit']);
+        $this->middleware('permission:create-lesson')->only(['store', 'storeForCourseUnit']);
+        $this->middleware('permission:update-lesson')->only(['update', 'updateForCourseUnit']);
+        $this->middleware('permission:delete-lesson')->only(['destroy', 'destroyForCourseUnit']);
     }
 
     /**
@@ -145,6 +146,89 @@ class LessonController extends Controller
                 'error' => $e->getMessage(),
             ]);
             throw new Exception('Unable to retrieve lesson details.', 500);
+        }
+    }
+
+    public function indexForCourseUnit(FilterLessonsRequest $request, Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $request->merge(['unit_id' => $unit->unit_id]);
+
+        return $this->index($request);
+    }
+
+    public function showForCourseUnit(Course $course, Unit $unit, Lesson $lesson): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $this->ensureLessonBelongsToUnit($unit, $lesson);
+
+        return $this->show($lesson);
+    }
+
+    public function storeForCourseUnit(StoreLessonRequest $request, Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->store($request);
+    }
+
+    public function updateForCourseUnit(UpdateLessonRequest $request, Course $course, Unit $unit, Lesson $lesson): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $this->ensureLessonBelongsToUnit($unit, $lesson);
+
+        return $this->update($request, $lesson);
+    }
+
+    public function destroyForCourseUnit(Course $course, Unit $unit, Lesson $lesson): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $this->ensureLessonBelongsToUnit($unit, $lesson);
+
+        return $this->destroy($lesson);
+    }
+
+    public function reorderForCourseUnit(ReorderLessonsRequest $request, Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->reorder($request, $unit);
+    }
+
+    public function getLessonCountForCourseUnit(Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->getLessonCount($unit);
+    }
+
+    public function getDurationForCourseUnit(Course $course, Unit $unit, Lesson $lesson): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $this->ensureLessonBelongsToUnit($unit, $lesson);
+
+        return $this->getDuration($lesson);
+    }
+
+    public function moveToPositionForCourseUnit(MoveLessonRequest $request, Course $course, Unit $unit, Lesson $lesson): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+        $this->ensureLessonBelongsToUnit($unit, $lesson);
+
+        return $this->moveToPosition($request, $lesson);
+    }
+
+    protected function ensureUnitBelongsToCourse(Course $course, Unit $unit): void
+    {
+        if ((int) $unit->course_id !== (int) $course->course_id) {
+            abort(404);
+        }
+    }
+
+    protected function ensureLessonBelongsToUnit(Unit $unit, Lesson $lesson): void
+    {
+        if ((int) $lesson->unit_id !== (int) $unit->unit_id) {
+            abort(404);
         }
     }
 

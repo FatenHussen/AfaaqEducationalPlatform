@@ -2,14 +2,15 @@
 
 namespace Modules\LearningModule\Http\Requests\Unit;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
+use Modules\LearningModule\Models\Course;
 
 /**
  * Form request for storing a new unit.
  * Translatable fields (title, description) accept string or array with en/ar keys.
  */
-class StoreUnitRequest extends FormRequest
+class StoreUnitRequest extends ApiFormRequest
 {
     public function authorize(): bool
     {
@@ -22,6 +23,11 @@ class StoreUnitRequest extends FormRequest
             if ($this->has($key) && is_string($this->input($key))) {
                 $this->merge([$key => ['en' => $this->input($key)]]);
             }
+        }
+
+        $routeCourse = $this->route('course');
+        if ($routeCourse instanceof Course) {
+            $this->merge(['course_id' => $routeCourse->course_id]);
         }
     }
 

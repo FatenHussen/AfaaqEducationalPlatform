@@ -20,7 +20,7 @@ use Modules\ReportingModule\Http\Controllers\TeacherDashboardController;
  * @access Instructor Only
  * @scope  CourseAccessScope (filters courses by instructor to insure instructors can only access their assigned courses)
  */
-Route::group(['middleware' => ['auth:api', 'role:instructor']], function () {
+Route::group(['middleware' => ['auth:api', 'role:instructor,api']], function () {
 
     /**
     |--------------------------------------------------------------------------
@@ -28,12 +28,13 @@ Route::group(['middleware' => ['auth:api', 'role:instructor']], function () {
     |--------------------------------------------------------------------------
      */
     /**
-     * @name   Instructor Dashboard
-     * @path   GET /api/v1/dashboard
+     * @name   Instructor Dashboard (self)
+     * @path   GET /api/v1/instructor/dashboard
      * @desc   Retrieve dashboard data for the authenticated instructor (assigned courses, metrics, etc.).
+     * @note   Distinct from GET /api/v1/instructor/dashboard/{instructorId} (ReportingModule) and avoids clashing with student GET /api/v1/student/dashboard.
      * @controller TeacherDashboardController@dashboard
      */
-    Route::get('/dashboard', [TeacherDashboardController::class, 'dashboard']);
+    Route::get('/instructor/dashboard', [TeacherDashboardController::class, 'dashboard']);
 
     /**
     |--------------------------------------------------------------------------
@@ -87,7 +88,7 @@ Route::group(['middleware' => ['auth:api', 'role:instructor']], function () {
      * @desc   Fetch the units for a specific course.
      * @param {course: slug}
      */
-    Route::get('/my-courses/{course}/units', [UnitController::class, 'index']);//policy?
+    Route::get('/my-courses/{course}/units', [UnitController::class, 'byCourse']);//policy?
 
     /**
      * @name   Reorder Units in Course
@@ -112,46 +113,46 @@ Route::group(['middleware' => ['auth:api', 'role:instructor']], function () {
      * @path   POST /api/v1/my-courses/{course}/units
      * @desc   Create a new unit within an instructor's course.
      */
-    Route::post('/my-courses/{course}/units', [UnitController::class, 'store']);
+    Route::post('/my-courses/{course}/units', [UnitController::class, 'storeForCourse']);
 
     /**
      * @name   View Unit
      * @path   GET /api/v1/my-courses/{course}/units/{unit}
      * @desc   view details of a specific unit.
      */
-    Route::get('/my-courses/{course}/units/{unit}', [UnitController::class, 'show']);
+    Route::get('/my-courses/{course}/units/{unit}', [UnitController::class, 'showForCourse']);
 
     /**
      * @name   Update Course Unit
      * @path   PUT /api/v1/my-courses/{course}/units/{unit}
      * @desc   Modify unit attributes by course instructor.
      */
-    Route::put('/my-courses/{course}/units/{unit}', [UnitController::class, 'update']);//policy
+    Route::put('/my-courses/{course}/units/{unit}', [UnitController::class, 'updateForCourse']);//policy
 
     /**
      * @name   Delete Course Unit
      * @path   DELETE /api/v1/my-courses/{course}/units/{unit}
      * @desc   Soft Deletes a module and its associated lessons.
      */
-    Route::delete('/my-courses/{course}/units/{unit}', [UnitController::class, 'destroy']);
+    Route::delete('/my-courses/{course}/units/{unit}', [UnitController::class, 'destroyForCourse']);
 
     /**
      * @name   Get Unit Duration
      * @path   GET /api/v1/my-courses/{course}/units/{unit}/duration
      * @desc   Get duration of a unit.
      * @param  {course: slug, unit: slug}
-     * @controller UnitController@getDuration
+     * @controller UnitController@getDurationForCourse
      */
-    Route::get('/my-courses/{course}/units/{unit}/duration', [UnitController::class, 'getDuration']);
+    Route::get('/my-courses/{course}/units/{unit}/duration', [UnitController::class, 'getDurationForCourse']);
 
     /**
      * @name   Move Unit to Position
      * @path   PUT /api/v1/my-courses/{course}/units/{unit}/position
      * @desc   Change unit order position within the course.
      * @param  {course: slug, unit: slug}
-     * @controller UnitController@moveToPosition
+     * @controller UnitController@moveToPositionForCourse
      */
-    Route::put('/my-courses/{course}/units/{unit}/position', [UnitController::class, 'moveToPosition']);
+    Route::put('/my-courses/{course}/units/{unit}/position', [UnitController::class, 'moveToPositionForCourse']);
 
     /**
     |--------------------------------------------------------------------------
@@ -164,71 +165,71 @@ Route::group(['middleware' => ['auth:api', 'role:instructor']], function () {
      * @path   GET /api/v1/my-courses/{course}/units/{unit}/lessons
      * @desc   List all learning materials in a specific unit within instructor's requested course
      */
-    Route::get('/my-courses/{course}/units/{unit}/lessons', [LessonController::class, 'index']);
+    Route::get('/my-courses/{course}/units/{unit}/lessons', [LessonController::class, 'indexForCourseUnit']);
 
     /**
      * @name   Reorder Lessons in Unit
      * @path   POST /api/v1/my-courses/{course}/units/{unit}/lessons/reorder
      * @desc   Reorder lessons within a unit.
      * @param  {course: slug, unit: slug}
-     * @controller LessonController@reorder
+     * @controller LessonController@reorderForCourseUnit
      */
-    Route::post('/my-courses/{course}/units/{unit}/lessons/reorder', [LessonController::class, 'reorder']);
+    Route::post('/my-courses/{course}/units/{unit}/lessons/reorder', [LessonController::class, 'reorderForCourseUnit']);
 
     /**
      * @name   Get Lesson Count
      * @path   GET /api/v1/my-courses/{course}/units/{unit}/lessons/count
      * @desc   Get number of lessons in a unit.
      * @param  {course: slug, unit: slug}
-     * @controller LessonController@getLessonCount
+     * @controller LessonController@getLessonCountForCourseUnit
      */
-    Route::get('/my-courses/{course}/units/{unit}/lessons/count', [LessonController::class, 'getLessonCount']);
+    Route::get('/my-courses/{course}/units/{unit}/lessons/count', [LessonController::class, 'getLessonCountForCourseUnit']);
 
     /**
      * @name   Create Lesson
      * @path   POST /api/v1/my-courses/{course}/units/{unit}/lessons
      * @desc   Add a new lesson
      */
-    Route::post('/my-courses/{course}/units/{unit}/lessons', [LessonController::class, 'store']);
+    Route::post('/my-courses/{course}/units/{unit}/lessons', [LessonController::class, 'storeForCourseUnit']);
 
     /**
      * @name   View Lesson
      * @path   GET /api/v1/my-courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Retrieve lesson content for review or editing.
      */
-    Route::get('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'show']);
+    Route::get('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'showForCourseUnit']);
 
     /**
      * @name   Update Lesson
      * @path   PUT /api/v1/my-courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Modify lesson content
      */
-    Route::put('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'update']);
+    Route::put('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'updateForCourseUnit']);
 
     /**
      * @name   Delete Lesson
      * @path   DELETE /api/v1/my-courses/{course}/units/{unit}/lessons/{lesson}
      * @desc   Soft Deletes lesson content.
      */
-    Route::delete('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'destroy']);
+    Route::delete('/my-courses/{course}/units/{unit}/lessons/{lesson}', [LessonController::class, 'destroyForCourseUnit']);
 
     /**
      * @name   Get Lesson Duration
      * @path   GET /api/v1/my-courses/{course}/units/{unit}/lessons/{lesson}/duration
      * @desc   Get duration of a lesson.
      * @param  {course: slug, unit: slug, lesson: slug}
-     * @controller LessonController@getDuration
+     * @controller LessonController@getDurationForCourseUnit
      */
-    Route::get('/my-courses/{course}/units/{unit}/lessons/{lesson}/duration', [LessonController::class, 'getDuration']);
+    Route::get('/my-courses/{course}/units/{unit}/lessons/{lesson}/duration', [LessonController::class, 'getDurationForCourseUnit']);
 
     /**
      * @name   Move Lesson to Position
      * @path   PUT /api/v1/my-courses/{course}/units/{unit}/lessons/{lesson}/position
      * @desc   Change lesson order position within the unit.
      * @param  {course: slug, unit: slug, lesson: slug}
-     * @controller LessonController@moveToPosition
+     * @controller LessonController@moveToPositionForCourseUnit
      */
-    Route::put('/my-courses/{course}/units/{unit}/lessons/{lesson}/position', [LessonController::class, 'moveToPosition']);
+    Route::put('/my-courses/{course}/units/{unit}/lessons/{lesson}/position', [LessonController::class, 'moveToPositionForCourseUnit']);
 
     /**
     |--------------------------------------------------------------------------

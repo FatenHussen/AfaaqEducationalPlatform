@@ -5,6 +5,7 @@ namespace Modules\LearningModule\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Traits\CachesQueries;
 use Exception;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -42,10 +43,10 @@ class UnitController extends Controller
     {
         $this->unitService = $unitService;
          $this->middleware('permission:list-units')->only('index');
-        $this->middleware('permission:show-unit')->only('show');
-        $this->middleware('permission:create-unit')->only('store');
-        $this->middleware('permission:update-unit')->only('update');
-        $this->middleware('permission:delete-unit')->only('destroy');
+        $this->middleware('permission:show-unit')->only(['show', 'showForCourse']);
+        $this->middleware('permission:create-unit')->only(['store', 'storeForCourse']);
+        $this->middleware('permission:update-unit')->only(['update', 'updateForCourse']);
+        $this->middleware('permission:delete-unit')->only(['destroy', 'destroyForCourse']);
     }
 
     /**
@@ -87,36 +88,13 @@ class UnitController extends Controller
      */
     public function store(StoreUnitRequest $request): JsonResponse
     {
-        try {
-            $course = Course::find($request->input('course_id'));
+        $course = Course::find($request->input('course_id'));
 
-            if (!$course) {
-                throw new Exception('Course not found.', 404);
-            }
-
-            $data = $request->validated();
-            unset($data['course_id']); // Remove course_id as service sets it from course object
-            $unit = $this->unitService->create($course, $data);
-
-            if (!$unit) {
-                throw new Exception('Failed to create unit. Please check your input and try again.', 422);
-            }
-
-            $unit->load(['course']);
-
-            return self::success(
-                new UnitResource($unit),
-                'Unit created successfully.',
-                201
-            );
-        } catch (Exception $e) {
-            Log::error('Unexpected error creating unit', [
-                'course_id' => $request->input('course_id'),
-                'user_id' => Auth::id(),
-                'error' => $e->getMessage(),
-            ]);
-            throw new Exception('An error occurred while creating the unit.', 500);
+        if (!$course) {
+            throw new Exception('Course not found.', 404);
         }
+
+        return $this->storeForResolvedCourse($request, $course);
     }
 
     /**
@@ -146,6 +124,101 @@ class UnitController extends Controller
             ]);
             throw new Exception('Unable to retrieve unit details.', 500);
         }
+    }
+
+    /**
+     * Display a unit under a course route segment ({course}/units/{unit}).
+     */
+    public function showForCourse(Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->show($unit);
+    }
+
+    protected function ensureUnitBelongsToCourse(Course $course, Unit $unit): void
+    {
+        if ((int) $unit->course_id !== (int) $course->course_id) {
+            abort(404);
+        }
+    }
+
+    /**
+     * Store a unit when the course is provided as a leading route parameter.
+     */
+    public function storeForCourse(StoreUnitRequest $request, Course $course): JsonResponse
+    {
+        return $this->storeForResolvedCourse($request, $course);
+    }
+
+    /**
+     * Persist a unit for an already-resolved course (avoids a redundant lookup on nested routes).
+     */
+    protected function storeForResolvedCourse(StoreUnitRequest $request, Course $course): JsonResponse
+    {
+        try {
+            $data = $request->validated();
+            unset($data['course_id']);
+
+            $unit = $this->unitService->create($course, $data);
+
+            if (!$unit) {
+                throw new Exception('Failed to create unit. Please check your input and try again.', 422);
+            }
+
+            $unit->load(['course']);
+
+            return self::success(
+                new UnitResource($unit),
+                'Unit created successfully.',
+                201
+            );
+        } catch (QueryException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            Log::error('Unexpected error creating unit', [
+                'course_id' => $course->course_id,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+
+            $code = $e->getCode();
+            if ($code >= 400 && $code < 600 && $code !== 0) {
+                throw $e;
+            }
+
+            throw new Exception('An error occurred while creating the unit.', 500);
+        }
+    }
+
+    /**
+     * Update a unit under a nested course segment.
+     */
+    public function updateForCourse(UpdateUnitRequest $request, Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->update($request, $unit);
+    }
+
+    /**
+     * Delete a unit under a nested course segment.
+     */
+    public function destroyForCourse(Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->destroy($unit);
+    }
+
+    /**
+     * Move unit position under a nested course segment.
+     */
+    public function moveToPositionForCourse(MoveUnitRequest $request, Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->moveToPosition($request, $unit);
     }
 
     /**
@@ -323,6 +396,16 @@ class UnitController extends Controller
             ]);
             throw new Exception('Unable to retrieve unit duration.', 500);
         }
+    }
+
+    /**
+     * Unit duration when course is a leading route segment.
+     */
+    public function getDurationForCourse(Course $course, Unit $unit): JsonResponse
+    {
+        $this->ensureUnitBelongsToCourse($course, $unit);
+
+        return $this->getDuration($unit);
     }
 
     /**

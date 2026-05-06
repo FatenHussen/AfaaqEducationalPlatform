@@ -2,14 +2,15 @@
 
 namespace Modules\LearningModule\Http\Requests\Lesson;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
+use Modules\LearningModule\Models\Unit;
 
 /**
  * Form request for storing a new lesson.
  * Translatable fields (title, description) accept string or array with en/ar keys.
  */
-class StoreLessonRequest extends FormRequest
+class StoreLessonRequest extends ApiFormRequest
 {
     public function authorize(): bool
     {
@@ -22,6 +23,11 @@ class StoreLessonRequest extends FormRequest
             if ($this->has($key) && is_string($this->input($key))) {
                 $this->merge([$key => ['en' => $this->input($key)]]);
             }
+        }
+
+        $routeUnit = $this->route('unit');
+        if ($routeUnit instanceof Unit) {
+            $this->merge(['unit_id' => $routeUnit->unit_id]);
         }
     }
 
@@ -39,7 +45,7 @@ class StoreLessonRequest extends FormRequest
             'lesson_type' => ['required', 'string', Rule::in(['lecture', 'video', 'interactive', 'reading'])],
             'is_required' => ['nullable', 'boolean'],
             'actual_duration_minutes' => ['required', 'integer', 'min:1'],
-            'video'=> 'nullable|file|mimes:mp4,mov,ogg,qt|max:51200',
+            'video'=> 'nullable|file|mimes:mp4,mov,ogg,qt|max:2097152',
             'attachments' => 'nullable|array',
             'attachments.*' => 'file|mimes:pdf,zip,rar,doc,docx,ppt,pptx|max:10240',
         ];
